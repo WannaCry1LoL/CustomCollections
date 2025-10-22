@@ -5,18 +5,23 @@ namespace CustomCollections.Collections;
 
 
 
-public class MyLinkedList<T> : IList<T>
+public class MyLinkedList<T>() : IList<T>
 {
 	public bool IsReadOnly => false;
 
 	protected Guid OwnerId = Guid.NewGuid();
-	protected ulong Version = 0;
+	protected ulong Version;
 	protected LinkedListNode<T>? Head;
 	protected LinkedListNode<T>? Tail;
 	
 	public int Count { get; protected set; }
 	public bool IsEmpty => Head == null;
-	
+
+	public MyLinkedList(params IEnumerable<T> collection) : this()
+	{
+		ArgumentNullException.ThrowIfNull(collection, nameof(collection));
+		AddRange(collection);
+	}
 	
 	protected static bool Next(LinkedListNode<T> current, bool reverse, [NotNullWhen(true)] out LinkedListNode<T>? next)
 	{
@@ -30,11 +35,11 @@ public class MyLinkedList<T> : IList<T>
 	protected bool Find(LinkedListNode<T>? start, T value, out int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
 	{
 		(index, node) = (-1, null);
-		var curr = start;
+		
 		if (IsEmpty)
 			return false;
 		
-		curr ??= Head;
+		var curr = start ?? Head;
 		
 		if (start != null)
 		{
@@ -47,7 +52,7 @@ public class MyLinkedList<T> : IList<T>
 		do
 		{
 			index++;
-			if (!EqualityComparer<T>.Default.Equals(curr.Value, value)) continue;
+			if (!EqualityComparer<T>.Default.Equals(curr!.Value, value)) continue;
 			node = curr;
 			return true;
 		} while (Next(curr, false, out curr));
@@ -66,9 +71,9 @@ public class MyLinkedList<T> : IList<T>
 		var curr = iterateReverse ? Tail : Head;
 		var steps = iterateReverse ? Count - 1 - index : index;
 		for(int i = 0; i < steps; i++)
-			Next(curr, iterateReverse, out curr);
+			Next(curr!, iterateReverse, out curr);
 		
-		node = curr;
+		node = curr!;
 		return true;
 	}
 	
@@ -80,12 +85,12 @@ public class MyLinkedList<T> : IList<T>
 		if (node.IsHead)
 			Head = node.Next;
 		else
-			node.Previous.Next = node.Next;
+			node.Previous!.Next = node.Next;
 		
 		if (node.IsTail)
 			Tail = node.Previous;
 		else
-			node.Next.Previous = node.Previous;
+			node.Next!.Previous = node.Previous;
 
 		node.Owner = Guid.Empty;
 		
@@ -106,20 +111,32 @@ public class MyLinkedList<T> : IList<T>
 		Count++;
 	}
 
-	public void Clear() => (Head, Tail, Count, OwnerId) = (null, null, 0, Guid.NewGuid());
+	public void AddRange(IEnumerable<T> collection)
+	{
+		using var en = collection.GetEnumerator();
+		while (en.MoveNext())
+			Add(en.Current);
+	}
+	
+	public void Clear() => (Head, Tail, Count, OwnerId, Version) = (null, null, 0, Guid.NewGuid(), Version + 1);
 
 	public bool Contains(T item) => Find(null, item, out _, out _);
 
 	public void CopyTo(T[] array, int arrayIndex)
 	{
+		ArgumentNullException.ThrowIfNull(array, nameof(array));
+		ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex, nameof(arrayIndex));
+
+		if (array.Length - arrayIndex < Count)
+			throw new ArgumentException("Destination array was not long enough.");
+		
 		if(IsEmpty)
 			return;
 		
 		var curr = Head;
 		do
-		{
-			array[arrayIndex++] = curr.Value;
-		} while(Next(curr, false, out curr));
+			array[arrayIndex++] = curr!.Value!;
+		while (Next(curr, false, out curr));
 	}
 
 	public bool Remove(T item)
@@ -139,19 +156,13 @@ public class MyLinkedList<T> : IList<T>
 		{
 			if (Version != initialVersion)
 				throw new InvalidOperationException("Collection was modified during Enumeration");
-			yield return curr.Value;
+			yield return curr!.Value!;
 		} while (Next(curr, reverse, out curr));
 	}
 	
-	public IEnumerator<T> GetEnumerator()
-	{
-		return GetEnumerator(false);
-	}
+	public IEnumerator<T> GetEnumerator() => GetEnumerator(false);
 
-	IEnumerator IEnumerable.GetEnumerator()
-	{
-		return GetEnumerator();
-	}
+	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 	public int IndexOf(T item)
 	{
@@ -161,11 +172,14 @@ public class MyLinkedList<T> : IList<T>
 
 	public void Insert(int index, T item)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
+		
 		if (IsEmpty)
 			Add(item);
+		
 		else if (index == 0)
 		{
-			Head = Head.Previous = new LinkedListNode<T>(OwnerId, item)
+			Head = Head!.Previous = new LinkedListNode<T>(OwnerId, item)
 			{
 				Next = Head
 			};
@@ -181,7 +195,7 @@ public class MyLinkedList<T> : IList<T>
 				Previous = node.Previous,
 				Next = node
 			};
-			node.Previous = node.Previous.Next = res;
+			node.Previous = node.Previous!.Next = res;
 			Count++;
 			Version++;
 		}
@@ -191,6 +205,8 @@ public class MyLinkedList<T> : IList<T>
 
 	public void RemoveAt(int index)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
+		
 		if (TryGetAtIndex(index, out var node))
 			Remove(node);
 		else 
@@ -199,12 +215,10 @@ public class MyLinkedList<T> : IList<T>
 
 	public T this[int index]
 	{
-		get
-		{
-			if (TryGetAtIndex(index, out var node))
-				return node.Value;
-			throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
-		}
+		get => 
+			TryGetAtIndex(index, out var node) 
+				? node.Value! 
+				: throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
 		set
 		{
 			if (TryGetAtIndex(index, out var node)) node.Value = value;

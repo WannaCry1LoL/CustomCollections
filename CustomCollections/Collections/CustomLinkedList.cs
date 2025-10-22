@@ -63,7 +63,7 @@ public class MyLinkedList<T>() : IList<T>
 		return false;
 	}
 	
-	protected bool TryGetAtIndex([ConstantExpected(Min = 0)] int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
+	protected bool TryGetAtIndex(int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
 	{
 		node = null;
 		
@@ -125,7 +125,7 @@ public class MyLinkedList<T>() : IList<T>
 
 	public bool Contains(T item) => Find(null, item, out _, out _);
 
-	public void CopyTo(T[] array, [ConstantExpected(Min = 0)] int arrayIndex)
+	public void CopyTo(T[] array, int arrayIndex)
 	{
 		ArgumentNullException.ThrowIfNull(array, nameof(array));
 		ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex, nameof(arrayIndex));
@@ -173,7 +173,7 @@ public class MyLinkedList<T>() : IList<T>
 		return idx;
 	}
 
-	public void Insert([ConstantExpected(Min = 0)] int index, T item)
+	public void Insert(int index, T item)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
 		
@@ -206,7 +206,7 @@ public class MyLinkedList<T>() : IList<T>
 			throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
 	}
 
-	public void RemoveAt([ConstantExpected(Min = 0)] int index)
+	public void RemoveAt(int index)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
 		
@@ -216,7 +216,7 @@ public class MyLinkedList<T>() : IList<T>
 			throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
 	}
 
-	public T this[[ConstantExpected(Min = 0)] int index]
+	public T this[int index]
 	{
 		get => 
 			TryGetAtIndex(index, out var node) 

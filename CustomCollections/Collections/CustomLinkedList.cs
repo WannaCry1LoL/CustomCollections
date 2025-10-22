@@ -1,0 +1,227 @@
+﻿using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+
+namespace CustomCollections.Collections;
+
+
+
+public class MyLinkedList<T> : IList<T>
+{
+	public bool IsReadOnly => false;
+
+	protected Guid OwnerId = Guid.NewGuid();
+	protected ulong Version = 0;
+	protected LinkedListNode<T>? Head;
+	protected LinkedListNode<T>? Tail;
+	
+	public int Count { get; protected set; }
+	public bool IsEmpty => Head == null;
+	
+	
+	protected static bool Next(LinkedListNode<T> current, bool reverse, [NotNullWhen(true)] out LinkedListNode<T>? next)
+	{
+		next = null;
+		var tmp = reverse ? current.Previous : current.Next;
+		if (tmp == null) return false;
+		next = tmp;
+		return true;
+	}
+
+	protected bool Find(LinkedListNode<T>? start, T value, out int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
+	{
+		(index, node) = (-1, null);
+		var curr = start;
+		if (IsEmpty)
+			return false;
+		
+		curr ??= Head;
+		
+		if (start != null)
+		{
+			var tmp = start;
+			do
+				index++;
+			while (Next(tmp, true, out tmp));
+		}
+		
+		do
+		{
+			index++;
+			if (!EqualityComparer<T>.Default.Equals(curr.Value, value)) continue;
+			node = curr;
+			return true;
+		} while (Next(curr, false, out curr));
+		
+		return false;
+	}
+	
+	protected bool TryGetAtIndex(int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
+	{
+		node = null;
+		
+		if (index < 0 || index >= Count)
+			return false;
+		
+		var iterateReverse = index >= Count / 2.0;
+		var curr = iterateReverse ? Tail : Head;
+		var steps = iterateReverse ? Count - 1 - index : index;
+		for(int i = 0; i < steps; i++)
+			Next(curr, iterateReverse, out curr);
+		
+		node = curr;
+		return true;
+	}
+	
+	protected void Remove(LinkedListNode<T> node)
+	{
+		if (node.Owner != OwnerId)
+			throw new InvalidOperationException("Attempt to remove a node that is not owned by this instance.");
+		
+		if (node.IsHead)
+			Head = node.Next;
+		else
+			node.Previous.Next = node.Next;
+		
+		if (node.IsTail)
+			Tail = node.Previous;
+		else
+			node.Next.Previous = node.Previous;
+
+		node.Owner = Guid.Empty;
+		
+		Version++;
+		Count--;
+	}
+
+	public void Add(T item)
+	{
+		if (Tail == null)
+			Head = Tail = new LinkedListNode<T>(OwnerId, item);
+		else
+			Tail = Tail.Next = new LinkedListNode<T>(OwnerId, item)
+			{
+				Previous = Tail
+			};
+		Version++;
+		Count++;
+	}
+
+	public void Clear() => (Head, Tail, Count, OwnerId) = (null, null, 0, Guid.NewGuid());
+
+	public bool Contains(T item) => Find(null, item, out _, out _);
+
+	public void CopyTo(T[] array, int arrayIndex)
+	{
+		if(IsEmpty)
+			return;
+		
+		var curr = Head;
+		do
+		{
+			array[arrayIndex++] = curr.Value;
+		} while(Next(curr, false, out curr));
+	}
+
+	public bool Remove(T item)
+	{
+		if (!Find(null, item, out _, out var node)) return false;
+		Remove(node);
+		return true;
+	}
+
+	public IEnumerator<T> GetEnumerator(bool reverse)
+	{
+		if (IsEmpty)
+			yield break;
+		var initialVersion = Version;
+		var curr = reverse ? Tail : Head;
+		do
+		{
+			if (Version != initialVersion)
+				throw new InvalidOperationException("Collection was modified during Enumeration");
+			yield return curr.Value;
+		} while (Next(curr, reverse, out curr));
+	}
+	
+	public IEnumerator<T> GetEnumerator()
+	{
+		return GetEnumerator(false);
+	}
+
+	IEnumerator IEnumerable.GetEnumerator()
+	{
+		return GetEnumerator();
+	}
+
+	public int IndexOf(T item)
+	{
+		if (!Find(null, item, out var idx, out _)) return -1;
+		return idx;
+	}
+
+	public void Insert(int index, T item)
+	{
+		if (IsEmpty)
+			Add(item);
+		else if (index == 0)
+		{
+			Head = Head.Previous = new LinkedListNode<T>(OwnerId, item)
+			{
+				Next = Head
+			};
+			Count++;
+			Version++;
+		}
+		else if (index == Count)
+			Add(item);
+		else if (TryGetAtIndex(index, out var node))
+		{
+			var res = new LinkedListNode<T>(OwnerId, item)
+			{
+				Previous = node.Previous,
+				Next = node
+			};
+			node.Previous = node.Previous.Next = res;
+			Count++;
+			Version++;
+		}
+		else 
+			throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
+	}
+
+	public void RemoveAt(int index)
+	{
+		if (TryGetAtIndex(index, out var node))
+			Remove(node);
+		else 
+			throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
+	}
+
+	public T this[int index]
+	{
+		get
+		{
+			if (TryGetAtIndex(index, out var node))
+				return node.Value;
+			throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
+		}
+		set
+		{
+			if (TryGetAtIndex(index, out var node)) node.Value = value;
+			else throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
+		}
+	}
+	
+	protected class LinkedListNode<U>(Guid owner, U value)
+	{
+		public Guid Owner = owner;
+		public U? Value = value;
+		public LinkedListNode<U>? Next;
+		public LinkedListNode<U>? Previous;
+		
+		public bool IsHead => Previous == null;
+		public bool IsTail => Next == null;
+
+		public bool IsSingleNode => IsHead && IsTail;
+	}
+}

@@ -43,6 +43,9 @@ public class MyLinkedList<T>() : IList<T>
 		
 		if (start != null)
 		{
+			if (start.Owner != OwnerId)
+				throw new InvalidOperationException("Attempt to start from a node that is not owned by this instance.");
+			
 			var tmp = start;
 			do
 				index++;

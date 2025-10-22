@@ -23,7 +23,7 @@ public class MyLinkedList<T>() : IList<T>
 		AddRange(collection);
 	}
 	
-	protected static bool Next(LinkedListNode<T> current, bool reverse, [NotNullWhen(true)] out LinkedListNode<T>? next)
+	protected static bool MoveNext(LinkedListNode<T> current, bool reverse, [NotNullWhen(true)] out LinkedListNode<T>? next)
 	{
 		next = null;
 		var tmp = reverse ? current.Previous : current.Next;
@@ -49,7 +49,7 @@ public class MyLinkedList<T>() : IList<T>
 			var tmp = start;
 			do
 				index++;
-			while (Next(tmp, true, out tmp));
+			while (MoveNext(tmp, true, out tmp));
 		}
 		
 		do
@@ -58,7 +58,7 @@ public class MyLinkedList<T>() : IList<T>
 			if (!EqualityComparer<T>.Default.Equals(curr!.Value, value)) continue;
 			node = curr;
 			return true;
-		} while (Next(curr, false, out curr));
+		} while (MoveNext(curr, false, out curr));
 		
 		return false;
 	}
@@ -73,8 +73,8 @@ public class MyLinkedList<T>() : IList<T>
 		var iterateReverse = index >= Count / 2.0;
 		var curr = iterateReverse ? Tail : Head;
 		var steps = iterateReverse ? Count - 1 - index : index;
-		for(int i = 0; i < steps; i++)
-			Next(curr!, iterateReverse, out curr);
+		for(var i = 0; i < steps; i++)
+			MoveNext(curr!, iterateReverse, out curr);
 		
 		node = curr!;
 		return true;
@@ -139,7 +139,7 @@ public class MyLinkedList<T>() : IList<T>
 		var curr = Head;
 		do
 			array[arrayIndex++] = curr!.Value!;
-		while (Next(curr, false, out curr));
+		while (MoveNext(curr, false, out curr));
 	}
 
 	public bool Remove(T item)
@@ -160,7 +160,7 @@ public class MyLinkedList<T>() : IList<T>
 			if (Version != initialVersion)
 				throw new InvalidOperationException("Collection was modified during Enumeration");
 			yield return curr!.Value!;
-		} while (Next(curr, reverse, out curr));
+		} while (MoveNext(curr, reverse, out curr));
 	}
 	
 	public IEnumerator<T> GetEnumerator() => GetEnumerator(false);
@@ -229,12 +229,12 @@ public class MyLinkedList<T>() : IList<T>
 		}
 	}
 	
-	protected class LinkedListNode<U>(Guid owner, U value)
+	protected class LinkedListNode<TU>(Guid owner, TU value)
 	{
 		public Guid Owner = owner;
-		public U? Value = value;
-		public LinkedListNode<U>? Next;
-		public LinkedListNode<U>? Previous;
+		public TU? Value = value;
+		public LinkedListNode<TU>? Next;
+		public LinkedListNode<TU>? Previous;
 		
 		public bool IsHead => Previous == null;
 		public bool IsTail => Next == null;

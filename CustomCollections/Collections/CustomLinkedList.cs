@@ -3,23 +3,34 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace CustomCollections.Collections;
 
+public class LinkedListNode<T>(ushort owner, T value)
+{
+	public ushort Owner = owner;
+	public T? Value = value;
+	public LinkedListNode<T>? Next;
+	public LinkedListNode<T>? Previous;
+		
+	public bool IsHead => Previous == null;
+	public bool IsTail => Next == null;
 
+	public bool IsSingleNode => IsHead && IsTail;
+}
 
 public class MyLinkedList<T>() : IList<T>
 {
 	public bool IsReadOnly => false;
 
-	protected Guid OwnerId = Guid.NewGuid();
+	protected ushort OwnerId = (ushort)Random.Shared.Next(1, ushort.MaxValue + 1);
 	protected ulong Version;
 	protected LinkedListNode<T>? Head;
 	protected LinkedListNode<T>? Tail;
 	
 	public int Count { get; protected set; }
 	public bool IsEmpty => Head == null;
-
+	
 	public MyLinkedList(params IEnumerable<T> collection) : this()
 	{
-		ArgumentNullException.ThrowIfNull(collection, nameof(collection));
+		ArgumentNullException.ThrowIfNull(collection);
 		AddRange(collection);
 	}
 	
@@ -32,9 +43,9 @@ public class MyLinkedList<T>() : IList<T>
 		return true;
 	}
 
-	protected bool Find(LinkedListNode<T>? start, T value, out int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
+	protected bool Find(LinkedListNode<T>? start, T value, ref int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
 	{
-		(index, node) = (-1, null);
+		node = null;
 		
 		if (IsEmpty)
 			return false;
@@ -46,10 +57,8 @@ public class MyLinkedList<T>() : IList<T>
 			if (start.Owner != OwnerId)
 				throw new InvalidOperationException("Attempt to start from a node that is not owned by this instance.");
 			
-			var tmp = start;
-			do
-				index++;
-			while (MoveNext(tmp, true, out tmp));
+			if (index == -1)
+				throw new InvalidOperationException("Cannot start from node without index");
 		}
 		
 		do
@@ -63,6 +72,12 @@ public class MyLinkedList<T>() : IList<T>
 		return false;
 	}
 	
+	protected bool FindFirst(T value, out int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
+	{
+		index = -1;
+		return Find(null, value, ref index, out node);
+	}
+
 	protected bool TryGetAtIndex(int index, [NotNullWhen(true)] out LinkedListNode<T>? node)
 	{
 		node = null;
@@ -95,7 +110,7 @@ public class MyLinkedList<T>() : IList<T>
 		else
 			node.Next!.Previous = node.Previous;
 
-		node.Owner = Guid.Empty;
+		node.Owner = 0;
 		
 		Version++;
 		Count--;
@@ -116,19 +131,21 @@ public class MyLinkedList<T>() : IList<T>
 
 	public void AddRange(IEnumerable<T> collection)
 	{
-		using var en = collection.GetEnumerator();
-		while (en.MoveNext())
-			Add(en.Current);
+        ArgumentNullException.ThrowIfNull(collection);
+        using var en = collection.GetEnumerator();
+        while (en.MoveNext())
+	        Add(en.Current);
 	}
 	
-	public void Clear() => (Head, Tail, Count, OwnerId, Version) = (null, null, 0, Guid.NewGuid(), Version + 1);
+	public void Clear() => (Head, Tail, Count, OwnerId, Version) 
+		= (null, null, 0, (ushort)Random.Shared.Next(1, ushort.MaxValue + 1),Version + 1);
 
-	public bool Contains(T item) => Find(null, item, out _, out _);
-
+	public bool Contains(T item) => FindFirst(item, out _, out _);
+	
 	public void CopyTo(T[] array, int arrayIndex)
 	{
-		ArgumentNullException.ThrowIfNull(array, nameof(array));
-		ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex, nameof(arrayIndex));
+		ArgumentNullException.ThrowIfNull(array);
+		ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex);
 
 		if (array.Length - arrayIndex < Count)
 			throw new ArgumentException("Destination array was not long enough.");
@@ -144,7 +161,7 @@ public class MyLinkedList<T>() : IList<T>
 
 	public bool Remove(T item)
 	{
-		if (!Find(null, item, out _, out var node)) return false;
+		if (!FindFirst(item, out _, out var node)) return false;
 		Remove(node);
 		return true;
 	}
@@ -169,13 +186,14 @@ public class MyLinkedList<T>() : IList<T>
 
 	public int IndexOf(T item)
 	{
-		if (!Find(null, item, out var idx, out _)) return -1;
+		if (!FindFirst(item, out var idx, out _)) return -1;
 		return idx;
 	}
 
 	public void Insert(int index, T item)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
+		ArgumentOutOfRangeException.ThrowIfNegative(index);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
 		
 		if (IsEmpty)
 			Add(item);
@@ -208,7 +226,7 @@ public class MyLinkedList<T>() : IList<T>
 
 	public void RemoveAt(int index)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
+		ArgumentOutOfRangeException.ThrowIfNegative(index);
 		
 		if (TryGetAtIndex(index, out var node))
 			Remove(node);
@@ -227,18 +245,5 @@ public class MyLinkedList<T>() : IList<T>
 			if (TryGetAtIndex(index, out var node)) node.Value = value;
 			else throw new IndexOutOfRangeException($"The specified index ({index}) is out of range.");
 		}
-	}
-	
-	protected class LinkedListNode<TU>(Guid owner, TU value)
-	{
-		public Guid Owner = owner;
-		public TU? Value = value;
-		public LinkedListNode<TU>? Next;
-		public LinkedListNode<TU>? Previous;
-		
-		public bool IsHead => Previous == null;
-		public bool IsTail => Next == null;
-
-		public bool IsSingleNode => IsHead && IsTail;
 	}
 }
